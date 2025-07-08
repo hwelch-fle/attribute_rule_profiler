@@ -137,7 +137,8 @@ class RuleProfiler:
             parameterType="Optional",
             direction="Input",
         )
-        iterations.filter.list = [1, 2, 3, 4, 5]
+        if iterations.filter is not None:
+            iterations.filter.list = [1, 2, 3, 4, 5]
         iterations.value = 2
         
         target = Parameter(
@@ -163,6 +164,17 @@ class RuleProfiler:
         for feature_layer in features_to_update:
             datasource = feature_layer.dataSource
             feature_name = datasource.split('\\')[-1]
+            
+            # Type safe way to pull database connection
+            database = None
+            con_props = feature_layer.connectionProperties
+            if isinstance(con_props, dict):
+                con_info = con_props['connection_info']
+                if isinstance(con_info, dict):
+                    database = con_info['database']
+            
+            if database is None:
+                raise ValueError(f'{feature_name} has invalid connection properties: {con_props}')
             
             # Skip empty FCs
             count = sum(1 for _ in SearchCursor(datasource, ['OID@']))
@@ -198,7 +210,7 @@ class RuleProfiler:
                     rule.enable()
                     start = time()
                     for iteration in range(1, iterations+1):
-                        with Editor(feature_layer.connectionProperties['connection_info']['database']):
+                        with Editor(database):
                             with UpdateCursor(datasource, ["OID@"]) as cursor:
                                 for idx, row in enumerate(cursor):
                                     SetProgressorLabel(
